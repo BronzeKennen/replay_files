@@ -2,6 +2,7 @@ import requests
 import pprint
 import json
 import time
+import os
 
 upload_url = "https://ballchasing.com/api/v2/upload?visibility=public"
 token = 'HfPXqYhM1dsX0M1fZ2zHG3ceZbuRTOBOd4qShtHX'
@@ -16,7 +17,8 @@ def uploadStats(match_stats):
 
 
 
-def fetch(token):
+def fetch(token, debug):
+    replay_count = 0
     fetch_url = "https://ballchasing.com/api/replays"
     params = {
         'group' : 'amogusballs-p8t77336hr'
@@ -33,30 +35,32 @@ def fetch(token):
     detailed_replays = []
 
     for replay in replays['list']:
+        if (debug and replay_count >= 3):
+            break
+        replay_count+=1
         new_url = fetch_url + '/' + str(replay['id'])
         r = requests.get(new_url, headers={
             'Authorization' : token
         },params=params)
 
         if (r.status_code == 200):
-            print("MORE SUCCESS! REPLAY WITH EXTRA STATS FETCHED")
+            print(f"Fetching Replay no. {replay_count}")
         
         detailed_replays.append(r.json())
         time.sleep(0.8)
-    
+    print(f'Fetched {replay_count} replays!')
     return detailed_replays
-    
 
+#To avoid reaching the api call limit for no reason
+debug_mode = int(input('Type 0 for replay upload, 1 for debug mode: '))
 
-
-replays = fetch(token)
+replays = fetch(token, debug_mode)
 match_stats = {}
 for replay in replays:
     replay_index = replays.index(replay)
     for player in replays[replay_index]['blue']['players']:
         stats = player['stats']['core']
         if(player['name'] in match_stats):
-            #will need to make average this is used as an example. Needs fixing!
             match_stats[player['name']]['shots'] += player['stats']['core']['shots']
             match_stats[player['name']]['shots_against'] += player['stats']['core']['shots_against']
             match_stats[player['name']]['goals'] += player['stats']['core']['goals']
@@ -64,17 +68,17 @@ for replay in replays:
             match_stats[player['name']]['saves'] += player['stats']['core']['saves']
             match_stats[player['name']]['assists'] += player['stats']['core']['assists']
             match_stats[player['name']]['score'] += player['stats']['core']['score']
-            match_stats[player['name']]['shooting_percentage'] = round((match_stats[player['name']]['goals'] / match_stats[player['name']]['shots'])*100, 2)
+            print('player name : ', player['name'] ,' goals', match_stats[player['name']]['goals'], 'shots' , match_stats[player['name']]['shots'])
+            if (match_stats[player['name']]['shots'] != 0):
+                match_stats[player['name']]['shooting_percentage'] = round((match_stats[player['name']]['goals'] / match_stats[player['name']]['shots'])*100, 2)
             if (player['stats']['core']['mvp']):
-                match_stats[player['name']]['mvp'] =+ 1
+                match_stats[player['name']]['mvp'] += 1
         else:
             match_stats.update({player['name'] : stats})
+            match_stats[player['name']]['mvp'] = 0
             if (player['stats']['core']['mvp']):
-                match_stats[player['name']]['mvp'] = 1
-            else:
-                match_stats[player['name']]['mvp'] = 0
+                match_stats[player['name']]['mvp'] += 1
     for player in replays[replay_index]['orange']['players']:
-        # pprint.pprint(player['stats']['core'])
         stats = player['stats']['core']
         if(player['name'] in match_stats):
             match_stats[player['name']]['shots'] += player['stats']['core']['shots']
@@ -84,23 +88,20 @@ for replay in replays:
             match_stats[player['name']]['saves'] += player['stats']['core']['saves']
             match_stats[player['name']]['assists'] += player['stats']['core']['assists']
             match_stats[player['name']]['score'] += player['stats']['core']['score']         
-            match_stats[player['name']]['shooting_percentage'] = round((match_stats[player['name']]['goals'] / match_stats[player['name']]['shots'])*100, 2)
+            if (match_stats[player['name']]['shots'] != 0):
+                match_stats[player['name']]['shooting_percentage'] = round((match_stats[player['name']]['goals'] / match_stats[player['name']]['shots'])*100, 2)
             if (player['stats']['core']['mvp']):
-                match_stats[player['name']]['mvp'] =+ 1
+                match_stats[player['name']]['mvp'] += 1
         else:
             match_stats.update({player['name'] : stats})
+            match_stats[player['name']]['mvp'] = 0
             if (player['stats']['core']['mvp']):
-                match_stats[player['name']]['mvp'] = 1
-            else:
-                match_stats[player['name']]['mvp'] = 0
+                match_stats[player['name']]['mvp'] += 1
 
-# pprint.pprint(replays[0]['blue']['players'][0]['name'])
-    #print out the names of each player for each replay!
-    #based on team and whatever
 print(match_stats)
 jstats = json.dumps(match_stats, indent=4)
 
-with open("D:/Bakkesmod Overlay Test/LiveMatchParser/hyper_ekes/match_stats.json", "w") as out:
+with open(os.getcwd() + "/match_stats.json", "w") as out:
     out.write(jstats)
 
 uploadStats(str(match_stats))
